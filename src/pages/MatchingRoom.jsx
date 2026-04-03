@@ -3,16 +3,8 @@ import Authorize from './Authorize';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 
-/* ─── API 설정 ─── */
 const API = 'http://127.0.0.1:8000';
-
-const getHeaders = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.id}`,
-    };
-};
+const AVATARS = ['🐻‍❄️', '🐱', '🐶', '🦊', '🐸', '🦁', '🐨', '🐯'];
 
 /* ─── 애니메이션 ─── */
 const fadeSlideUp = keyframes`
@@ -31,13 +23,8 @@ const STATUS = {
     started:   { label: '실천 시작!', color: '#E65100', bg: '#FFF3E0', dot: '#FF8F00' },
     pending:   { label: '인증 검토중', color: '#1565C0', bg: '#E3F2FD', dot: '#42A5F5' },
     completed: { label: '실천 완료!', color: '#2E7D32', bg: '#E8F5E9', dot: '#4CAF50' },
+    rejected:  { label: '인증 반려',  color: '#B71C1C', bg: '#FFEBEE', dot: '#EF9A9A' },
 };
-
-/* ─── 기본 Mock 멤버 (fallback) ─── */
-const MOCK_MEMBERS = [
-    { id: 1, name: '팀원 1', avatar: '🌿', status: 'waiting', time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) },
-    { id: 0, name: '나',     avatar: '🙋', status: 'waiting', time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), isMe: true },
-];
 
 /* ─── 스타일 ─── */
 const Page = styled.div`
@@ -92,7 +79,10 @@ const HeaderTitle = styled.h2`
   font-weight: 800;
   color: var(--color-text);
   line-height: 1.3;
-  span { color: var(--color-primary); }
+
+  span {
+    color: var(--color-primary);
+  }
 `;
 
 const HeaderSub = styled.p`
@@ -121,21 +111,21 @@ const MemberCard = styled.div`
   align-items: center;
   gap: 12px;
   box-shadow: var(--shadow-sm);
-  border: 1.5px solid ${p => p.isMe ? 'var(--color-primary-light)' : 'var(--color-border)'};
-  animation: ${slideInCard} 0.35s ease ${p => p.delay || '0s'} both;
+  border: 1.5px solid ${p => p.isMe ? 'var(--color-primary)' : 'transparent'};
+  animation: ${slideInCard} 0.35s ease ${p => p.delay} both;
 `;
 
 const AvatarBubble = styled.div`
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  background: ${p => p.isMe ? 'var(--color-primary-pale)' : '#F5F5F5'};
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-primary-pale);
+  border: 2px solid ${p => p.isMe ? 'var(--color-primary)' : 'var(--color-border)'};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 22px;
   flex-shrink: 0;
-  border: 1.5px solid ${p => p.isMe ? 'var(--color-border)' : 'transparent'};
 `;
 
 const CardInfo = styled.div`
@@ -151,16 +141,16 @@ const NameRow = styled.div`
 `;
 
 const MemberName = styled.span`
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
 `;
 
 const MeTag = styled.span`
   font-size: 10px;
   font-weight: 800;
-  background: var(--color-primary);
-  color: white;
+  color: var(--color-primary);
+  background: var(--color-primary-pale);
   border-radius: 40px;
   padding: 2px 7px;
 `;
@@ -169,62 +159,91 @@ const StatusBox = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: ${p => STATUS[p.status]?.bg || '#F5F5F5'};
-  border-radius: 8px;
-  padding: 5px 10px;
+  background: ${p => STATUS[p.status]?.bg || STATUS.waiting.bg};
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
 `;
 
 const StatusLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 `;
 
 const StatusDot = styled.div`
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: ${p => STATUS[p.status]?.dot || '#9E9E9E'};
+  background: ${p => STATUS[p.status]?.dot || STATUS.waiting.dot};
+  flex-shrink: 0;
 `;
 
 const StatusLabel = styled.span`
+  font-size: 14px;
+  font-weight: 800;
+  color: ${p => STATUS[p.status]?.color || STATUS.waiting.color};
+`;
+
+const ActionBtnRow = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const ApproveBtn = styled.button`
+  background: #E8F5E9;
+  border: 1px solid #A5D6A7;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--font);
   font-size: 12px;
-  font-weight: 700;
-  color: ${p => STATUS[p.status]?.color || '#5A7260'};
+  font-weight: 800;
+  color: #2E7D32;
+  cursor: pointer;
+  &:active { background: #C8E6C9; }
 `;
 
-const TimeLabel = styled.span`
-  font-size: 11px;
-  color: ${p => STATUS[p.status]?.color || 'var(--color-text-secondary)'};
-  opacity: 0.7;
+const RejectBtn = styled.button`
+  background: #FFEBEE;
+  border: 1px solid #FFCDD2;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 800;
+  color: #B71C1C;
+  cursor: pointer;
+  &:active { background: #FFCDD2; }
 `;
 
+/* ─── 하단 인증 툴바 ─── */
 const Toolbar = styled.div`
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
+  box-shadow: 0 -4px 16px rgba(46,125,50,0.08);
 `;
 
 const CertifyBtn = styled.button`
   width: 100%;
-  padding: 15px;
+  background: ${p => p.disabled ? 'var(--color-border)' : 'var(--color-primary)'};
+  color: ${p => p.disabled ? 'var(--color-text-secondary)' : 'white'};
+  border: none;
   border-radius: var(--radius-md);
+  padding: 17px;
   font-family: var(--font);
   font-size: 16px;
   font-weight: 800;
-  border: none;
-  cursor: pointer;
-  background: var(--color-primary);
-  color: white;
-  box-shadow: var(--shadow-md);
-  transition: opacity 0.15s, transform 0.1s;
-  &:active {
-    opacity: 0.88;
-    transform: scale(0.98);
-    box-shadow: 0 2px 8px rgba(46,125,50,0.2);
-  }
+  cursor: ${p => p.disabled ? 'default' : 'pointer'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: ${p => p.disabled ? 'none' : '0 4px 16px rgba(46,125,50,0.3)'};
+  transition: transform 0.15s, box-shadow 0.15s;
+  &:active { transform: ${p => p.disabled ? 'none' : 'scale(0.98)'}; }
 `;
 
+/* ─── 경고 모달 ─── */
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
@@ -275,78 +294,149 @@ const ModalBtn = styled.button`
   &:active { opacity: 0.8; }
 `;
 
+/* ─── 완료 화면 ─── */
+const CompletionArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  animation: ${fadeSlideUp} 0.4s ease both;
+`;
+
 /* ─── 컴포넌트 ─── */
-export default function MatchingRoom({ activity, roomId, initialMembers, onBack, onEnd, onConfirm }) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const currentUserId = user.id;
-
-    // initialMembers가 있으면 사용, 없으면 MOCK_MEMBERS
-    const defaultMembers = (initialMembers && initialMembers.length > 0)
-        ? initialMembers
-        : MOCK_MEMBERS.map(m => m.isMe ? { ...m, id: currentUserId, name: user.name || '나' } : m);
-
-    const [members, setMembers]         = useState(defaultMembers);
-    const [showConfirm, setShowConfirm] = useState(false);
+export default function MatchingRoom({ activity, onBack, onEnd }) {
+    const [members, setMembers]           = useState([]);
+    const [showConfirm, setShowConfirm]   = useState(false);
     const [showAuthorize, setShowAuthorize] = useState(false);
-    const [successText, setSuccessText] = useState('');
+    const [successText, setSuccessText]   = useState('');
+    const [roomClosed, setRoomClosed]     = useState(false);
+    const pollingRef = useRef(null);
 
-    const refreshRef = useRef(null);
+    const userId = Number(localStorage.getItem('user_id') || '1');
+    const roomId = activity?.room_id;
 
-    // 30초마다 방 멤버 상태 갱신
+    const fetchRoomData = async () => {
+        try {
+            const [roomRes, proofsRes] = await Promise.all([
+                fetch(`${API}/rooms/${roomId}`),
+                fetch(`${API}/rooms/${roomId}/proofs`),
+            ]);
+
+            // 방이 사라진 경우 (모든 인증 완료로 자동 종료)
+            if (roomRes.status === 404) {
+                clearInterval(pollingRef.current);
+                setRoomClosed(true);
+                setTimeout(() => onEnd(), 2500);
+                return;
+            }
+
+            const room   = await roomRes.json();
+            const proofs = await proofsRes.json();
+
+            // proof 상태를 user_id로 빠르게 조회
+            const proofMap = {};
+            proofs.forEach(p => { proofMap[p.user_id] = p; });
+
+            const mapped = room.members.map((m, i) => {
+                const proof = proofMap[m.user_id];
+                let status = 'waiting';
+                if (proof) {
+                    if (proof.status === 'pending')  status = 'pending';
+                    else if (proof.status === 'approved') status = 'completed';
+                    else if (proof.status === 'rejected') status = 'started';
+                }
+                return {
+                    id:      m.id,
+                    user_id: m.user_id,
+                    name:    m.name,
+                    avatar:  AVATARS[i % AVATARS.length],
+                    status,
+                    isMe:    m.user_id === userId,
+                    hasPendingProof: proof?.status === 'pending',
+                };
+            });
+
+            setMembers(mapped);
+        } catch (err) {
+            console.error('방 정보 조회 실패:', err);
+        }
+    };
+
     useEffect(() => {
         if (!roomId) return;
-
-        const refresh = async () => {
-            try {
-                const res = await fetch(`${API}/rooms/${roomId}`, { headers: getHeaders() });
-                if (!res.ok) return;
-                const data = await res.json();
-                setMembers(data.members.map(m => ({
-                    id: m.user_id,
-                    name: m.name,
-                    avatar: m.user_id === currentUserId ? '🙋' : '🌿',
-                    status: m.status === 'done' ? 'completed' : m.status === 'pending' ? 'pending' : 'waiting',
-                    time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                    isMe: m.user_id === currentUserId,
-                })));
-            } catch { /* 조용히 무시 */ }
-        };
-
-        refreshRef.current = setInterval(refresh, 30000);
-        return () => clearInterval(refreshRef.current);
+        fetchRoomData();
+        pollingRef.current = setInterval(fetchRoomData, 2000);
+        return () => clearInterval(pollingRef.current);
     }, [roomId]);
 
-    const myStatus = members.find(m => m.isMe)?.status || 'waiting';
+    const handleApprove = async (targetUserId) => {
+        try {
+            await fetch(
+                `${API}/rooms/${roomId}/approve?target_user_id=${targetUserId}&user_id=${userId}`,
+                { method: 'POST' }
+            );
+            fetchRoomData();
+        } catch (err) {
+            console.error('승인 실패:', err);
+        }
+    };
+
+    const handleReject = async (targetUserId) => {
+        try {
+            await fetch(
+                `${API}/rooms/${roomId}/reject?target_user_id=${targetUserId}&user_id=${userId}`,
+                { method: 'POST' }
+            );
+            fetchRoomData();
+        } catch (err) {
+            console.error('반려 실패:', err);
+        }
+    };
+
+    const handleLeave = async () => {
+        clearInterval(pollingRef.current);
+        try {
+            await fetch(`${API}/matching/cancel?user_id=${userId}`, { method: 'DELETE' });
+        } catch {}
+        onEnd();
+    };
+
+    const myMember       = members.find(m => m.isMe);
+    const myStatus       = myMember?.status || 'waiting';
     const completedCount = members.filter(m => m.status === 'completed').length;
-    const allCompleted = members.every(m => m.status === 'completed');
+    const certifyDisabled = myStatus === 'pending' || myStatus === 'completed';
 
     let certifyText = '📸 사진 인증';
     if (myStatus === 'completed') certifyText = '✅ 실천 완료!';
     else if (myStatus === 'pending') certifyText = '⏳ 인증 검토 중';
+    else if (myStatus === 'started') certifyText = '📸 인증 재제출';
+
+    // 모든 인증 완료 화면
+    if (roomClosed) {
+        return (
+            <Page>
+                <CompletionArea>
+                    <div style={{ fontSize: 56 }}>🎉</div>
+                    <p style={{ fontSize: 20, fontWeight: 800 }}>모든 인증이 완료됐어요!</p>
+                    <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>100포인트가 적립되었습니다</p>
+                </CompletionArea>
+            </Page>
+        );
+    }
 
     // 인증 페이지
     if (showAuthorize) {
         return (
             <Authorize
+                roomId={roomId}
+                userId={userId}
                 onBack={() => setShowAuthorize(false)}
-                onSubmit={async (photo, description) => {
-                    // 내 상태 pending으로
-                    setMembers(prev =>
-                        prev.map(m =>
-                            m.isMe
-                                ? { ...m, status: 'pending', time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) }
-                                : m
-                        )
-                    );
-
-                    // 부모 컴포넌트에 전달 (records 저장 + 백엔드 proof 제출)
-                    onConfirm?.(photo, description);
-
+                onSubmit={() => {
+                    setShowAuthorize(false);
                     setSuccessText('⏳ 인증 검토 중입니다');
-                    setTimeout(() => {
-                        setShowAuthorize(false);
-                        setSuccessText('');
-                    }, 2000);
+                    setTimeout(() => setSuccessText(''), 2500);
                 }}
             />
         );
@@ -380,7 +470,7 @@ export default function MatchingRoom({ activity, roomId, initialMembers, onBack,
                         fontSize: 13,
                         fontWeight: 700,
                         padding: '8px 12px',
-                        display: 'inline-block'
+                        display: 'inline-block',
                     }}>
                         {successText}
                     </div>
@@ -401,10 +491,16 @@ export default function MatchingRoom({ activity, roomId, initialMembers, onBack,
                                 <StatusLeft>
                                     <StatusDot status={member.status} />
                                     <StatusLabel status={member.status}>
-                                        {STATUS[member.status]?.label || '진행 중'}
+                                        {STATUS[member.status]?.label}
                                     </StatusLabel>
                                 </StatusLeft>
-                                <TimeLabel status={member.status}>{member.time}</TimeLabel>
+                                {/* 다른 멤버의 인증이 검토중일 때 승인/반려 버튼 표시 */}
+                                {!member.isMe && member.hasPendingProof && (
+                                    <ActionBtnRow>
+                                        <ApproveBtn onClick={() => handleApprove(member.user_id)}>승인</ApproveBtn>
+                                        <RejectBtn  onClick={() => handleReject(member.user_id)}>반려</RejectBtn>
+                                    </ActionBtnRow>
+                                )}
                             </StatusBox>
                         </CardInfo>
                     </MemberCard>
@@ -414,15 +510,8 @@ export default function MatchingRoom({ activity, roomId, initialMembers, onBack,
             {/* ── 하단 인증 툴바 ── */}
             <Toolbar>
                 <CertifyBtn
-                    onClick={() => {
-                        if (myStatus !== 'completed' && myStatus !== 'pending') {
-                            setShowAuthorize(true);
-                        }
-                    }}
-                    style={{
-                        opacity: (myStatus === 'completed' || myStatus === 'pending') ? 0.6 : 1,
-                        cursor: (myStatus === 'completed' || myStatus === 'pending') ? 'default' : 'pointer',
-                    }}
+                    disabled={certifyDisabled}
+                    onClick={() => !certifyDisabled && setShowAuthorize(true)}
                 >
                     {certifyText}
                 </CertifyBtn>
@@ -434,7 +523,7 @@ export default function MatchingRoom({ activity, roomId, initialMembers, onBack,
                     <Modal>
                         <ModalTitle>정말로 활동을 종료하겠습니까?</ModalTitle>
                         <ModalBtnRow>
-                            <ModalBtn onClick={() => { setShowConfirm(false); onEnd(); }}>
+                            <ModalBtn onClick={() => { setShowConfirm(false); handleLeave(); }}>
                                 네
                             </ModalBtn>
                             <ModalBtn confirm onClick={() => setShowConfirm(false)}>

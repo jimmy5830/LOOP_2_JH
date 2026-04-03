@@ -1,70 +1,109 @@
-import React, { useState, useRef, useEffect } from 'react';
-import styled from '@emotion/styled';
-import { keyframes } from '@emotion/react';
+import React, { useState, useEffect, useRef } from 'react';
 import MatchingRoom from './MatchingRoom';
-import Authorize from './Authorize';
+import styled from '@emotion/styled';
+import { keyframes as kf } from '@emotion/react';
 
-/* ─── API 설정 ─── */
 const API = 'http://127.0.0.1:8000';
 
-const getHeaders = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.id}`,
+/* ─── 활동별 SVG 아이콘 ─── */
+const ICONS = {
+    tumbler: (
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect x="8" y="4" width="12" height="2.5" rx="1.25" fill="var(--color-primary)"/>
+            <path d="M9.5 6.5L10.5 23C10.5 23.55 10.95 24 11.5 24H16.5C17.05 24 17.5 23.55 17.5 23L18.5 6.5H9.5Z"
+                  fill="var(--color-primary-pale)" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M11 11H17" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M11.5 15H16.5" stroke="var(--color-primary)" strokeWidth="1.3" strokeLinecap="round" strokeOpacity="0.6"/>
+        </svg>
+    ),
+    trash: (
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M6 10L7.5 22C7.5 22.55 7.95 23 8.5 23H19.5C20.05 23 20.5 22.55 20.5 22L22 10H6Z"
+                  fill="var(--color-primary-pale)" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M4 10H24" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinecap="round"/>
+            <rect x="10" y="5" width="8" height="3" rx="1.5" stroke="var(--color-primary)" strokeWidth="1.5" fill="none"/>
+            <path d="M12 14V19M16 14V19" stroke="var(--color-primary)" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+    ),
+    recycle: (
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M14 5L17 10H11L14 5Z" fill="var(--color-primary)"/>
+            <path d="M14 23L11 18H17L14 23Z" fill="var(--color-primary)"/>
+            <path d="M5 17L8 12L10.5 16.5" stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            <path d="M23 17L20 12L17.5 16.5" stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            <path d="M8 17H20" stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+    ),
+    plogging: (
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="17" cy="6" r="2.5" fill="var(--color-primary)"/>
+            <path d="M14 10L11 20M14 10L18 14L22 12M14 10L16 15L13 22"
+                  stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M7 18L9 14L11 16"
+                  stroke="var(--color-primary-light)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+    ),
+    ocean: (
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <path d="M4 16C6 14 8 18 10 16C12 14 14 18 16 16C18 14 20 18 22 16"
+                  stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M4 20C6 18 8 22 10 20C12 18 14 22 16 20C18 18 20 22 22 20"
+                  stroke="var(--color-primary-light)" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6"/>
+            <path d="M14 12V6M14 6L11 9M14 6L17 9"
+                  stroke="var(--color-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+    ),
+};
+
+const ACTIVITY_TYPES = ['전체', '텀블러', '쓰레기 줍기', '분리수거', '플로깅', '해안 정화'];
+
+const getIcon = (type) => {
+    const map = {
+        '텀블러': ICONS.tumbler,
+        '쓰레기 줍기': ICONS.trash,
+        '분리수거': ICONS.recycle,
+        '플로깅': ICONS.plogging,
+        '해안 정화': ICONS.ocean,
     };
+    return map[type] || ICONS.trash;
 };
 
 /* ─── 애니메이션 ─── */
-const fadeSlideUp = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
+const pulseRing = kf`
+  0%   { transform: scale(0.85); opacity: 0.6; }
+  50%  { transform: scale(1.05); opacity: 0.15; }
+  100% { transform: scale(0.85); opacity: 0.6; }
+`;
+
+const pulseRing2 = kf`
+  0%   { transform: scale(0.75); opacity: 0.4; }
+  50%  { transform: scale(1.15); opacity: 0.08; }
+  100% { transform: scale(0.75); opacity: 0.4; }
+`;
+
+const scaleIn = kf`
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1);   opacity: 1; }
+`;
+
+const fadeSlideUp = kf`
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 `;
 
-const pulseRing = keyframes`
-  0%   { transform: scale(0.9); opacity: 0.6; }
-  50%  { transform: scale(1.05); opacity: 0.3; }
-  100% { transform: scale(0.9); opacity: 0.6; }
-`;
-
-const pulseRing2 = keyframes`
-  0%   { transform: scale(1); opacity: 0.4; }
-  50%  { transform: scale(1.1); opacity: 0.15; }
-  100% { transform: scale(1); opacity: 0.4; }
-`;
-
-const scaleIn = keyframes`
-  0%   { transform: scale(0.75); }
-  60%  { transform: scale(1.05); }
-  100% { transform: scale(1); }
-`;
-
-/* ─── Mock 데이터 (활동 목록) ─── */
-const ACTIVITY_TYPES = ['전체', '텀블러', '쓰레기 줍기', '분리수거', '플로깅', '해안 정화'];
-
-const MOCK_CHALLENGES = [
-    { id: 1, name: '한강 플로깅',        type: '플로깅',     icon: '🏃', desc: '한강변을 달리며 쓰레기를 줍습니다', count: 24 },
-    { id: 2, name: '마포구 분리수거',     type: '분리수거',   icon: '♻️', desc: '올바른 분리수거로 자원을 아껴요', count: 18 },
-    { id: 3, name: '텀블러 챌린지',       type: '텀블러',     icon: '🥤', desc: '일회용 컵 대신 텀블러를 사용해요', count: 31 },
-    { id: 4, name: '북한산 클린업',       type: '쓰레기 줍기', icon: '🗑️', desc: '아름다운 산을 깨끗하게 지켜요', count: 12 },
-    { id: 5, name: '해운대 해안 정화',   type: '해안 정화',  icon: '🌊', desc: '바다를 위한 작은 실천', count: 9  },
-];
-
 /* ─── 스타일 ─── */
 const Page = styled.div`
+  padding: 0 0 16px;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--color-bg);
 `;
 
 const TopBar = styled.div`
-  padding: 52px 20px 16px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-  h1 { font-size: 20px; font-weight: 800; }
-  p  { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+  padding: 56px 20px 0;
+  h1 { font-size: 22px; font-weight: 800; }
+  p  { font-size: 14px; color: var(--color-text-secondary); margin-top: 4px; }
 `;
 
 const FilterScroll = styled.div`
@@ -93,10 +132,6 @@ const FilterChip = styled.button`
 const Section = styled.section`
   margin-top: 24px;
   padding: 0 20px;
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
 `;
 
 const SectionHeader = styled.div`
@@ -132,7 +167,6 @@ const IconCircle = styled.div`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 26px;
 `;
 
 const ActivityInfo = styled.div`
@@ -144,15 +178,15 @@ const ActivityInfo = styled.div`
 
 const JoinBtn = styled.button`
   flex-shrink: 0;
-  background: ${p => p.joined ? 'var(--color-border)' : 'var(--color-primary)'};
-  color: ${p => p.joined ? 'var(--color-text-secondary)' : 'white'};
+  background: var(--color-primary);
+  color: white;
   border: none;
   border-radius: var(--radius-sm);
   padding: 10px 18px;
   font-family: var(--font);
   font-size: 14px;
   font-weight: 800;
-  cursor: ${p => p.joined ? 'default' : 'pointer'};
+  cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
 `;
@@ -230,7 +264,6 @@ const CircleText = styled.div`
   color: ${p => p.done ? 'white' : 'var(--color-primary)'};
   text-align: center;
   line-height: 1.3;
-  white-space: pre-line;
 `;
 
 const MatchingLabel = styled.p`
@@ -265,239 +298,93 @@ const CancelBtn = styled.button`
   &:hover { border-color: var(--color-primary); color: var(--color-primary); }
 `;
 
-const WaitingCount = styled.p`
-  margin-top: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  animation: ${fadeSlideUp} 0.4s ease 0.15s both;
-`;
-
 /* ─── 컴포넌트 ─── */
 export default function Matching() {
-    const [challenges, setChallenges] = useState(
-        MOCK_CHALLENGES.map(c => ({ ...c, participants: [] }))
-    );
+    const [activities, setActivities]     = useState([]);
     const [selectedType, setSelectedType] = useState('전체');
-    const [matchingItem, setMatchingItem]  = useState(null);
-    const [matchDone, setMatchDone]        = useState(false);
-    const [roomItem, setRoomItem]          = useState(null);
-    const [currentRoomId, setCurrentRoomId] = useState(null);
-    const [roomMembers, setRoomMembers]    = useState([]);
-    const [waitingCount, setWaitingCount]  = useState(1);
-
+    const [matchingItem, setMatchingItem] = useState(null);
+    const [matchDone, setMatchDone]       = useState(false);
+    const [roomId, setRoomId]             = useState(null);
+    const [roomItem, setRoomItem]         = useState(null);
     const pollingRef = useRef(null);
 
-    // 컴포넌트 언마운트 시 polling 정리
+    const userId = Number(localStorage.getItem('user_id') || '1');
+
+    // 활동 목록 조회
     useEffect(() => {
-        return () => {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-        };
+        fetch(`${API}/activities`)
+            .then(r => r.json())
+            .then(data => setActivities(data.map(a => ({ ...a, icon: getIcon(a.type) }))))
+            .catch(err => console.error('활동 목록 조회 실패:', err));
     }, []);
 
-    // ── 1초 polling: 매칭 상태 확인 ──
-    const startPolling = (roomId) => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
+    // 언마운트 시 polling 정리
+    useEffect(() => () => clearInterval(pollingRef.current), []);
 
-        pollingRef.current = setInterval(async () => {
-            try {
-                const res = await fetch(`${API}/matching/status`, {
-                    headers: getHeaders(),
-                });
-                if (!res.ok) return;
-                const data = await res.json();
+    const filtered = selectedType === '전체'
+        ? activities
+        : activities.filter(c => c.type === selectedType);
 
-                // 대기 인원 수 업데이트 (있으면)
-                if (data.member_count) setWaitingCount(data.member_count);
-
-                if (data.can_certify) {
-                    clearInterval(pollingRef.current);
-                    setCurrentRoomId(data.room_id || roomId);
-                    setMatchDone(true);
-                }
-            } catch (err) {
-                console.error('[polling 오류]', err);
-            }
-        }, 1000);
-    };
-
-    // ── 참여하기 버튼 ──
     const handleJoin = async (challenge) => {
-        const user = JSON.parse(localStorage.getItem('user')) || { id: 0, name: '나' };
-
-        // 로컬 참여자 추가
-        setChallenges(prev =>
-            prev.map(c =>
-                c.id === challenge.id
-                    ? { ...c, participants: [...(c.participants || []), { id: user.id }] }
-                    : c
-            )
-        );
-        setMatchingItem(challenge);
-        setMatchDone(false);
-        setWaitingCount(1);
-
         try {
-            const res = await fetch(`${API}/matching/join/${challenge.id}`, {
-                method: 'POST',
-                headers: getHeaders(),
-            });
-
-            if (!res.ok) throw new Error('매칭 요청 실패');
+            const res = await fetch(
+                `${API}/matching/join/${challenge.id}?user_id=${userId}`,
+                { method: 'POST' }
+            );
             const data = await res.json();
+            setRoomId(data.room_id);
+            setMatchingItem(challenge);
 
-            const roomId = data.room_id;
-            setCurrentRoomId(roomId);
-
-            // 이미 2명 이상이면 바로 완료
             if (data.can_certify) {
                 setMatchDone(true);
             } else {
-                // polling 시작
-                startPolling(roomId);
+                setMatchDone(false);
+                pollingRef.current = setInterval(async () => {
+                    try {
+                        const r = await fetch(`${API}/matching/status?user_id=${userId}`);
+                        const s = await r.json();
+                        if (s.can_certify) {
+                            clearInterval(pollingRef.current);
+                            setRoomId(s.room_id);
+                            setMatchDone(true);
+                        }
+                    } catch {}
+                }, 1500);
             }
-
         } catch (err) {
-            console.error('[매칭 오류]', err, '→ Mock 모드로 전환');
-            // API 실패 시 Mock fallback (2.5초 후 완료)
-            setTimeout(() => setMatchDone(true), 2500);
+            console.error('매칭 참여 실패:', err);
+            alert('서버에 연결할 수 없습니다.');
         }
     };
 
-    // ── 매칭 취소 ──
     const handleCancel = async () => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-
+        clearInterval(pollingRef.current);
         try {
-            await fetch(`${API}/matching/cancel`, {
-                method: 'DELETE',
-                headers: getHeaders(),
-            });
+            await fetch(`${API}/matching/cancel?user_id=${userId}`, { method: 'DELETE' });
         } catch (err) {
-            console.error('[취소 오류]', err);
-        }
-
-        // 로컬 참여자 제거
-        const user = JSON.parse(localStorage.getItem('user')) || { id: 0 };
-        if (matchingItem) {
-            setChallenges(prev =>
-                prev.map(c =>
-                    c.id === matchingItem.id
-                        ? { ...c, participants: (c.participants || []).filter(p => p.id !== user.id) }
-                        : c
-                )
-            );
+            console.error('매칭 취소 실패:', err);
         }
         setMatchingItem(null);
         setMatchDone(false);
-        setCurrentRoomId(null);
+        setRoomId(null);
     };
 
-    // ── 확인 버튼 (방 입장) ──
-    const handleEnterRoom = async () => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-
-        const user = JSON.parse(localStorage.getItem('user')) || { id: 0, name: '나' };
-
-        try {
-            const res = await fetch(`${API}/rooms/${currentRoomId}`, {
-                headers: getHeaders(),
-            });
-            if (res.ok) {
-                const roomData = await res.json();
-                // 실제 멤버 목록을 MatchingRoom에 전달할 형태로 변환
-                const members = roomData.members.map(m => ({
-                    id: m.user_id,
-                    name: m.name,
-                    avatar: m.user_id === user.id ? '🙋' : '🌿',
-                    status: m.status === 'done' ? 'completed' : 'waiting',
-                    time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                    isMe: m.user_id === user.id,
-                }));
-                setRoomMembers(members);
-            }
-        } catch (err) {
-            console.error('[방 조회 오류]', err);
-            // fallback: 나 + 익명 팀원
-            setRoomMembers([
-                { id: user.id, name: '나', avatar: '🙋', status: 'waiting', time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), isMe: true },
-                { id: -1, name: '팀원', avatar: '🌿', status: 'waiting', time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), isMe: false },
-            ]);
-        }
-
-        setRoomItem(matchingItem);
+    const handleEnterRoom = () => {
+        clearInterval(pollingRef.current);
+        setRoomItem({ ...matchingItem, room_id: roomId });
         setMatchingItem(null);
         setMatchDone(false);
     };
 
-    // ── 인증 완료 처리 ──
-    const handleConfirm = async (photo, description) => {
-        if (!roomItem) return;
-
-        const user = JSON.parse(localStorage.getItem('user')) || { name: '나', id: 0 };
-        const activityType = roomItem.type;
-
-        // 기록 저장
-        const newRecord = {
-            id: Date.now(),
-            user: user.name,
-            userId: user.id,
-            activity: activityType,
-            location: '내 위치',
-            date: new Date().toISOString().slice(0, 10),
-            point: 0,
-            status: 'pending',
-            emoji: getEmoji(activityType),
-            photo: photo || null,
-            description: description || '',
-        };
-
-        const existingRecords = JSON.parse(localStorage.getItem('records')) || [];
-        const updatedRecords = [newRecord, ...existingRecords].slice(0, 8);
-        localStorage.setItem('records', JSON.stringify(updatedRecords));
-        window.dispatchEvent(new Event('storage'));
-
-        // 백엔드 인증 요청
-        if (currentRoomId) {
-            try {
-                await fetch(`${API}/rooms/${currentRoomId}/proof`, {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({ description: description || '' }),
-                });
-            } catch (err) {
-                console.error('[인증 제출 오류]', err);
-            }
-        }
-    };
-
-    const getEmoji = (type) => {
-        const map = { '텀블러': '🥤', '쓰레기 줍기': '🗑️', '분리수거': '♻️', '플로깅': '🏃', '해안 정화': '🌊' };
-        return map[type] || '✨';
-    };
-
-    // ── MatchingRoom 화면 ──
     if (roomItem) {
         return (
             <MatchingRoom
                 activity={roomItem}
-                roomId={currentRoomId}
-                initialMembers={roomMembers}
                 onBack={() => setRoomItem(null)}
-                onConfirm={handleConfirm}
-                onEnd={() => {
-                    setRoomItem(null);
-                    setCurrentRoomId(null);
-                    setRoomMembers([]);
-                }}
+                onEnd={() => setRoomItem(null)}
             />
         );
     }
-
-    const user = JSON.parse(localStorage.getItem('user')) || { id: 0 };
-    const filtered = selectedType === '전체'
-        ? challenges
-        : challenges.filter(c => c.type === selectedType);
 
     return (
         <Page>
@@ -523,13 +410,8 @@ export default function Matching() {
                     <MatchingLabel>{matchDone ? '함께할 팀원을 찾았어요!' : '팀원을 찾고 있어요'}</MatchingLabel>
                     <MatchingActivity>{matchingItem.name}</MatchingActivity>
 
-                    {!matchDone && (
-                        <WaitingCount>현재 {waitingCount}명 대기 중</WaitingCount>
-                    )}
-
                     {matchDone ? (
                         <JoinBtn
-                            joined={false}
                             onClick={handleEnterRoom}
                             style={{ marginTop: 36, padding: '13px 40px', animation: `${fadeSlideUp} 0.4s ease both` }}
                         >
@@ -566,32 +448,18 @@ export default function Matching() {
                                 <span>다른 유형으로 필터를 바꿔보세요</span>
                             </EmptyState>
                         ) : (
-                            filtered.map(challenge => {
-                                const participants = challenge.participants || [];
-                                const joined = !!participants.find(p => p.id === user.id);
-
-                                let buttonText = '참여하기';
-                                if (joined) buttonText = '⏳ 진행중';
-
-                                return (
-                                    <ActivityCard key={challenge.id}>
-                                        <IconCircle>{challenge.icon}</IconCircle>
-                                        <ActivityInfo>
-                                            <div className="name">{challenge.name}</div>
-                                            <div className="desc">{challenge.desc}</div>
-                                        </ActivityInfo>
-                                        <JoinBtn
-                                            joined={joined}
-                                            onClick={() => {
-                                                if (!joined) handleJoin(challenge);
-                                                else setRoomItem(challenge);
-                                            }}
-                                        >
-                                            {buttonText}
-                                        </JoinBtn>
-                                    </ActivityCard>
-                                );
-                            })
+                            filtered.map(challenge => (
+                                <ActivityCard key={challenge.id}>
+                                    <IconCircle>{challenge.icon}</IconCircle>
+                                    <ActivityInfo>
+                                        <div className="name">{challenge.name}</div>
+                                        <div className="desc">{challenge.desc}</div>
+                                    </ActivityInfo>
+                                    <JoinBtn onClick={() => handleJoin(challenge)}>
+                                        참여하기
+                                    </JoinBtn>
+                                </ActivityCard>
+                            ))
                         )}
                     </Section>
                 </>
